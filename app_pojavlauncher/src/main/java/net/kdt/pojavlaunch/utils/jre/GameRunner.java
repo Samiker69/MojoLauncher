@@ -269,9 +269,25 @@ public class GameRunner {
     }
 
     private static void addAuthlibInjectorArgs(List<String> javaArgList, MinecraftAccount minecraftAccount) {
-        String injectorUrl = minecraftAccount.authType.injectorUrl;
-        if(injectorUrl == null) return;
-        javaArgList.add("-javaagent:"+Tools.DIR_DATA+"/authlib-injector/authlib-injector.jar="+injectorUrl);
+        AuthType authType = minecraftAccount.authType;
+        String injectorUrl = authType.injectorUrl;
+
+        if (injectorUrl == null) return;
+        try {
+            if (!isServerReachable(injectorUrl)) {
+                Log.w("authlib-injector", "Ely.by is unreachable. Substituting authlib-injector URL to a fallback.");
+
+                if (authType == AuthType.ELY_BY) {
+                    injectorUrl = null; //dk
+                }
+                //TODO: show dialog (instead log)
+                Log.w("authlib-injector", "User will not get skins or authentication for Ely.by.");
+            }
+        } catch (Exception e) {
+            Log.e("authlib-injector", "Error while verifying auth server URL accessibility: ", e);
+            throw e;
+        }
+        javaArgList.add("-javaagent:" + Tools.DIR_DATA + "/authlib-injector/authlib-injector.jar=" + injectorUrl);
     }
 
     private static List<String> getMinecraftJVMArgs(String versionName) {
@@ -448,5 +464,19 @@ public class GameRunner {
             runtime = preferredRuntime;
         }
         return runtime;
+    }
+
+    private static boolean isServerReachable(String url) { //check if AuthServer is available
+        try {
+            HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setRequestMethod("HEAD");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+            connection.connect();
+            return connection.getResponseCode() == 200;
+        } catch (IOException e) {
+            Log.w("ServerReachable", "URL " + url + " is not reachable.", e);
+            return false;
+        }
     }
 }
